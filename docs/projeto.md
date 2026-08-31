@@ -71,17 +71,21 @@ A aplicação deverá ser executável localmente e estar preparada para implanta
 - `RF-02` — Listar salas, permitindo filtrar por status.
 - `RF-03` — Criar uma reserva informando sala, solicitante, início e término.
 - `RF-04` — Aceitar reservas somente para salas ativas.
-- `RF-05` — Aceitar reservas apenas entre 08:00 e 20:00, no fuso `America/Sao_Paulo`.
+- `RF-05` — Aceitar reservas apenas entre 08:00 e 20:00, no fuso `America/Sao_Paulo`. O horário de início deve ser maior ou igual a 08:00, o horário de término deve ser menor ou igual a 20:00 e `endsAt = 20:00` é permitido.
 - `RF-06` — A duração deve ser de no mínimo 30 minutos e no máximo 4 horas.
+- `RF-06.1` — `startsAt` e `endsAt` devem respeitar incrementos de 30 minutos. Exemplos válidos: 09:00, 09:30, 10:00. Exemplos inválidos: 09:10, 09:45.
 - `RF-07` — Uma sala não pode possuir reservas ativas com períodos sobrepostos.
 - `RF-08` — Períodos adjacentes são permitidos. Uma reserva das 10:00 às 11:00 não conflita com outra iniciada às 11:00.
 - `RF-09` — Cancelar uma reserva sem removê-la do histórico.
 - `RF-10` — Consultar reservas de uma sala dentro de um intervalo.
+- `RF-10.1` — A consulta de reservas deve retornar, por padrão, apenas reservas ativas. Reservas canceladas podem ser incluídas por meio de filtro explícito documentado pela implementação.
 - `RF-11` — Retornar erros HTTP estruturados para entrada inválida, recurso inexistente e conflito de agenda.
+- `RF-12` — Expor um endpoint de verificação de saúde para confirmar que a aplicação está em execução.
 
 ## 8. Requisitos não funcionais
 
 - `RNF-01` — O conflito de horário deve continuar sendo impedido quando duas requisições forem processadas simultaneamente.
+- `RNF-01.1` — Essa garantia de concorrência deve ser sustentada por mecanismo transacional e/ou restrição no banco de dados compatível com PostgreSQL, não apenas por validação em memória ou por consulta prévia sem proteção contra corrida.
 - `RNF-02` — A aplicação não deve depender de estado armazenado somente em memória.
 - `RNF-03` — Regras de negócio relevantes devem possuir testes automatizados.
 - `RNF-04` — A aplicação deve possuir testes de integração envolvendo a camada HTTP e a persistência.
@@ -110,6 +114,20 @@ Cenário: criar uma reserva válida
   Quando uma reserva é solicitada das 14:00 às 15:00
   Então a reserva é persistida como ativa
   E a resposta informa seu identificador
+```
+
+```gherkin
+Cenário: aceitar reserva encerrando às 20:00
+  Dado que a sala "Ipê" está ativa e disponível
+  Quando uma reserva é solicitada das 19:30 às 20:00
+  Então a nova reserva é aceita
+```
+
+```gherkin
+Cenário: rejeitar horário fora do incremento permitido
+  Dado que a sala "Ipê" está ativa
+  Quando uma reserva é solicitada das 14:10 às 14:40
+  Então a solicitação é recusada por entrada inválida
 ```
 
 ```gherkin
@@ -144,11 +162,25 @@ Cenário: reutilizar horário cancelado
 ```
 
 ```gherkin
+Cenário: consulta padrão não retorna canceladas
+  Dado que existe uma reserva ativa e uma reserva cancelada no intervalo consultado
+  Quando as reservas da sala são consultadas sem filtro adicional
+  Então apenas a reserva ativa é retornada
+```
+
+```gherkin
 Cenário: configuração de produção incompleta
   Dado que a aplicação é iniciada no ambiente prd
   Quando as configurações obrigatórias do banco não estão disponíveis
   Então a inicialização falha explicitamente
   E nenhuma credencial padrão insegura é utilizada
+```
+
+```gherkin
+Cenário: endpoint de saúde disponível
+  Dado que a aplicação foi iniciada com sucesso
+  Quando o endpoint de saúde é consultado
+  Então a resposta indica que a aplicação está operacional
 ```
 
 ## 11. Dados e contratos disponíveis
