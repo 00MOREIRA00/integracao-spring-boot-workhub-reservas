@@ -8,6 +8,7 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -299,6 +300,132 @@ class ReservationTest {
         );
     }
 
+    @Test
+    void shouldRejectNullRoom() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new Reservation(null, "employee-193", STARTS_AT, STARTS_AT.plusHours(1))
+        );
+
+        assertEquals("Room must not be null.", exception.getMessage());
+    }
+
+    @Test
+    void shouldRejectInactiveRoom() {
+        Room inactiveRoom = new Room("Cedro", 8, false);
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new Reservation(inactiveRoom, "employee-193", STARTS_AT, STARTS_AT.plusHours(1))
+        );
+
+        assertEquals("Reservations can only be created for active rooms.", exception.getMessage());
+    }
+
+    @Test
+    void shouldRejectNullRequesterId() {
+        assertInvalidRequesterId(null);
+    }
+
+    @Test
+    void shouldRejectEmptyRequesterId() {
+        assertInvalidRequesterId("");
+    }
+
+    @Test
+    void shouldRejectBlankRequesterId() {
+        assertInvalidRequesterId("   ");
+    }
+
+    @Test
+    void shouldTrimRequesterId() {
+        Reservation reservation = new Reservation(
+                activeRoom,
+                "  employee-193  ",
+                STARTS_AT,
+                STARTS_AT.plusHours(1)
+        );
+
+        assertEquals("employee-193", reservation.getRequesterId());
+    }
+
+    @Test
+    void shouldRejectNullStart() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new Reservation(activeRoom, "employee-193", null, STARTS_AT.plusHours(1))
+        );
+
+        assertEquals("Reservation start must not be null.", exception.getMessage());
+    }
+
+    @Test
+    void shouldRejectNullEnd() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new Reservation(activeRoom, "employee-193", STARTS_AT, null)
+        );
+
+        assertEquals("Reservation end must not be null.", exception.getMessage());
+    }
+
+    @Test
+    void shouldRejectStartEqualToEnd() {
+        assertInvalidPeriodOrder(STARTS_AT, STARTS_AT);
+    }
+
+    @Test
+    void shouldRejectStartAfterEnd() {
+        assertInvalidPeriodOrder(STARTS_AT, STARTS_AT.minusMinutes(30));
+    }
+
+    @Test
+    void shouldCreateActiveReservationWithCreationInstant() {
+        Reservation reservation = createReservation("10:00", "11:00");
+
+        assertEquals(ReservationStatus.ACTIVE, reservation.getStatus());
+        assertNotNull(reservation.getCreatedAt());
+        assertEquals(activeRoom, reservation.getRoom());
+        assertEquals(at("10:00"), reservation.getStartsAt());
+        assertEquals(at("11:00"), reservation.getEndsAt());
+    }
+
+    @Test
+    void shouldCancelReservation() {
+        Reservation reservation = createReservation("10:00", "11:00");
+        Instant cancellationInstant = Instant.parse("2026-08-19T12:00:00Z");
+
+        reservation.cancel(cancellationInstant);
+
+        assertEquals(ReservationStatus.CANCELLED, reservation.getStatus());
+        assertEquals(cancellationInstant, reservation.getCancelledAt());
+    }
+
+    @Test
+    void shouldRejectNullCancellationInstant() {
+        Reservation reservation = createReservation("10:00", "11:00");
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> reservation.cancel(null)
+        );
+
+        assertEquals("Cancellation instant must not be null.", exception.getMessage());
+        assertEquals(ReservationStatus.ACTIVE, reservation.getStatus());
+    }
+
+    @Test
+    void shouldKeepOriginalInstantWhenCancelledAgain() {
+        Reservation reservation = createReservation("10:00", "11:00");
+        Instant firstCancellation = Instant.parse("2026-08-19T12:00:00Z");
+
+        reservation.cancel(firstCancellation);
+        reservation.cancel(Instant.parse("2026-08-19T13:00:00Z"));
+
+        assertEquals(ReservationStatus.CANCELLED, reservation.getStatus());
+        assertEquals(firstCancellation, reservation.getCancelledAt());
+    }
+
     private Reservation createReservation(String start, String end) {
         return new Reservation(
                 activeRoom,
@@ -310,5 +437,23 @@ class ReservationTest {
 
     private OffsetDateTime at(String time) {
         return OffsetDateTime.parse("2026-08-20T" + time + ":00-03:00");
+    }
+
+    private void assertInvalidRequesterId(String requesterId) {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new Reservation(activeRoom, requesterId, STARTS_AT, STARTS_AT.plusHours(1))
+        );
+
+        assertEquals("Requester ID must not be blank.", exception.getMessage());
+    }
+
+    private void assertInvalidPeriodOrder(OffsetDateTime startsAt, OffsetDateTime endsAt) {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new Reservation(activeRoom, "employee-193", startsAt, endsAt)
+        );
+
+        assertEquals("Reservation start must be before reservation end.", exception.getMessage());
     }
 }
