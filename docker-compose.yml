@@ -1,0 +1,37 @@
+services:
+  teste-postgres-compose:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: workhub
+      POSTGRES_USER: workhub
+      POSTGRES_PASSWORD: testando123
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker-data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workhub -d workhub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - postgres-compose-network
+
+  teste-pgadmin-compose:
+    image: dpage/pgadmin4:9
+    environment:
+      PGADMIN_DEFAULT_EMAIL: emailteste@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: testando123
+    ports:
+      - "16543:80"
+    depends_on:
+      teste-postgres-compose:
+        condition: service_healthy
+    volumes:
+      - ./docker-data/pgadmin:/var/lib/pgadmin
+    networks:
+      - postgres-compose-network
+
+networks:
+  postgres-compose-network:
+    driver: bridge
